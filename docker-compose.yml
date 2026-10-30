@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: laybypay
+      POSTGRES_USER: laybypay
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - laybypay_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U laybypay -d laybypay"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [internal]
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://laybypay:${POSTGRES_PASSWORD}@postgres:5432/laybypay
+      APP_URL: ${APP_URL:-http://localhost:4000}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-4000}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "node src/migrate.js && node src/server.js"
+    networks: [internal]
+volumes:
+  laybypay_pg:
+networks:
+  internal:
+    driver: bridge
